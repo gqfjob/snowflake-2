@@ -7,11 +7,18 @@ import org.apache.curator.retry.RetryNTimes;
 import org.apache.curator.test.BaseClassForTests;
 import org.apache.curator.test.Timing;
 import org.apache.zookeeper.CreateMode;
+import org.apache.zookeeper.ZooDefs;
+import org.apache.zookeeper.data.ACL;
+import org.apache.zookeeper.data.Id;
 import org.apache.zookeeper.data.Stat;
+import org.apache.zookeeper.server.auth.DigestAuthenticationProvider;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
+
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.notNullValue;
@@ -32,7 +39,7 @@ public class SnowflakeZkFactoryTest extends BaseClassForTests {
     private static CuratorFramework client;
 
     @Before
-    public void before()  {
+    public void before() {
         try {
             super.setup();
         } catch (Exception e) {
@@ -53,7 +60,7 @@ public class SnowflakeZkFactoryTest extends BaseClassForTests {
      * 测试注册节点
      */
     @Test
-    public void testBuild()  {
+    public void testBuild() {
 
         SnowflakeZkFactory.build(server.getConnectString(), appUrl);
 
@@ -68,6 +75,24 @@ public class SnowflakeZkFactoryTest extends BaseClassForTests {
         SnowflakeZkFactory.close();
     }
 
+    /**
+     * 测试权限
+     */
+    @Test
+    public void authTest() {
+
+        setAcl(SNOWFLAKEU_URL + appUrl, "digest", "admin:admin123");
+
+        SnowflakeZkFactory.build(server.getConnectString(), appUrl, "admin:admin123");
+
+        assertThat("SnowflakeNode is not created!", checkExists(SNOWFLAKEU_URL + appUrl + "/" + String.valueOf(0L)), notNullValue());
+
+        assertThat("WorkerId is not equal!", SnowflakeZkFactory.getSnowflake().getWorkerId(), equalTo(0L));
+
+        assertThat("GeneratedID is not equal!", SnowflakeZkFactory.getSnowflake().getId(), equalTo((SnowflakeZkFactory.getSnowflake().getLastTimestamp() << 22) + (SnowflakeZkFactory.getSnowflake().getWorkerId() << 12)));
+
+        SnowflakeZkFactory.close();
+    }
 
     /**
      * 测试当节点被移除,重新注册节点
@@ -183,6 +208,18 @@ public class SnowflakeZkFactoryTest extends BaseClassForTests {
     private static void createPersistent(String path) {
         try {
             client.create().withMode(CreateMode.PERSISTENT).forPath(path);
+        } catch (Exception e) {
+            throw new IllegalStateException(e.getMessage(), e);
+        }
+    }
+
+    private static void setAcl(String path, String scheme, String idPassword) {
+        try {
+            Id id = new Id(scheme, DigestAuthenticationProvider.generateDigest(idPassword));
+            ACL acl = new ACL(ZooDefs.Perms.ALL, id);
+            List<ACL> acls = new ArrayList<>();
+            acls.add(acl);
+            client.setACL().withACL(acls).forPath(path);
         } catch (Exception e) {
             throw new IllegalStateException(e.getMessage(), e);
         }

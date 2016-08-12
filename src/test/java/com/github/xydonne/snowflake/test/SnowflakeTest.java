@@ -64,7 +64,7 @@ public class SnowflakeTest {
 
     }
 
-    @Test
+    @Test()
     public void performanceTest() {
 
         long workerId = 2L;
@@ -73,7 +73,7 @@ public class SnowflakeTest {
 
         //性能测试
         logger.info(System.lineSeparator() + "performance testing start.");
-        long testTimes = 100000000;
+        long testTimes = 10000000;
         long startTime = System.currentTimeMillis();
         for (int i = 0; i < testTimes; i++) {
             idWorker.getId();
