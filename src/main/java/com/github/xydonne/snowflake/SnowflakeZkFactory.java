@@ -166,22 +166,22 @@ public class SnowflakeZkFactory {
         //添加权限控制
         if (authority != null && authority.length() > 0) {
             ACLProvider aclProvider = new ACLProvider() {
-                private List<ACL> acl;
+                private List<ACL> acls;
 
                 @Override
                 public List<ACL> getDefaultAcl() {
-                    if (acl == null) {
-                        ArrayList<ACL> acl = ZooDefs.Ids.CREATOR_ALL_ACL;
-                        acl.clear();
-                        acl.add(new ACL(ZooDefs.Perms.ALL, new Id("digest", authority)));
-                        this.acl = acl;
+                    if (acls == null) {
+                        ArrayList<ACL> acls = ZooDefs.Ids.CREATOR_ALL_ACL;
+                        acls.clear();
+                        acls.add(new ACL(ZooDefs.Perms.ALL, new Id("digest", authority)));
+                        this.acls = acls;
                     }
-                    return acl;
+                    return acls;
                 }
 
                 @Override
                 public List<ACL> getAclForPath(String path) {
-                    return acl;
+                    return acls;
                 }
             };
             builder = builder
