@@ -12,6 +12,7 @@ import org.apache.zookeeper.data.ACL;
 import org.apache.zookeeper.data.Id;
 import org.apache.zookeeper.data.Stat;
 import org.apache.zookeeper.server.auth.DigestAuthenticationProvider;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -56,13 +57,22 @@ public class SnowflakeZkFactoryTest extends BaseClassForTests {
         }
     }
 
+    @After
+    public void after() {
+        SnowflakeZkFactory.close();
+        if (null != checkExists(SNOWFLAKEU_URL + appUrl)) {
+            deleteNode(SNOWFLAKEU_URL + appUrl);
+        }
+        client.close();
+    }
+
     /**
      * 测试注册节点
      */
     @Test
     public void testBuild() {
 
-        SnowflakeZkFactory.build(server.getConnectString(), appUrl);
+        SnowflakeZkFactory.init(server.getConnectString(), appUrl);
 
         assertThat("SnowflakeNode is not created!", checkExists(SNOWFLAKEU_URL + appUrl + "/" + String.valueOf(0L)), notNullValue());
 
@@ -72,7 +82,7 @@ public class SnowflakeZkFactoryTest extends BaseClassForTests {
 
         assertThat("GeneratedID is not equal!", SnowflakeZkFactory.getSnowflake().getId(), equalTo((SnowflakeZkFactory.getSnowflake().getLastTimestamp() << 22) + (SnowflakeZkFactory.getSnowflake().getWorkerId() << 12)));
 
-        SnowflakeZkFactory.close();
+
     }
 
     /**
@@ -83,7 +93,7 @@ public class SnowflakeZkFactoryTest extends BaseClassForTests {
 
         setAcl(SNOWFLAKEU_URL + appUrl, "digest", "admin:admin123");
 
-        SnowflakeZkFactory.build(server.getConnectString(), appUrl, "admin:admin123");
+        SnowflakeZkFactory.init(server.getConnectString(), appUrl, "admin:admin123");
 
         assertThat("SnowflakeNode is not created!", checkExists(SNOWFLAKEU_URL + appUrl + "/" + String.valueOf(0L)), notNullValue());
 
@@ -91,7 +101,6 @@ public class SnowflakeZkFactoryTest extends BaseClassForTests {
 
         assertThat("GeneratedID is not equal!", SnowflakeZkFactory.getSnowflake().getId(), equalTo((SnowflakeZkFactory.getSnowflake().getLastTimestamp() << 22) + (SnowflakeZkFactory.getSnowflake().getWorkerId() << 12)));
 
-        SnowflakeZkFactory.close();
     }
 
     /**
@@ -100,7 +109,7 @@ public class SnowflakeZkFactoryTest extends BaseClassForTests {
     @Test
     public void reRegisterTest() {
 
-        SnowflakeZkFactory.build(server.getConnectString(), appUrl);
+        SnowflakeZkFactory.init(server.getConnectString(), appUrl);
 
         assertThat("SnowflakeNode is not created!", checkExists(SNOWFLAKEU_URL + appUrl + "/" + String.valueOf(0L)), notNullValue());
 
@@ -128,7 +137,6 @@ public class SnowflakeZkFactoryTest extends BaseClassForTests {
 
         assertThat("GeneratedID is not equal!", SnowflakeZkFactory.getSnowflake().getId(), equalTo((SnowflakeZkFactory.getSnowflake().getLastTimestamp() << 22) + (SnowflakeZkFactory.getSnowflake().getWorkerId() << 12)));
 
-        SnowflakeZkFactory.close();
     }
 
 
@@ -146,7 +154,7 @@ public class SnowflakeZkFactoryTest extends BaseClassForTests {
         }
         setData(SNOWFLAKEU_URL + appUrl, Long.toString(1000L).getBytes());
 
-        SnowflakeZkFactory.build(server.getConnectString(), appUrl);
+        SnowflakeZkFactory.init(server.getConnectString(), appUrl);
 
         assertThat("SnowflakeNode is not created!", checkExists(SNOWFLAKEU_URL + appUrl + "/" + String.valueOf(50L)), notNullValue());
 
@@ -156,7 +164,6 @@ public class SnowflakeZkFactoryTest extends BaseClassForTests {
 
         assertThat("GeneratedID is not equal!", SnowflakeZkFactory.getSnowflake().getId(), equalTo((SnowflakeZkFactory.getSnowflake().getLastTimestamp() << 22) + (SnowflakeZkFactory.getSnowflake().getWorkerId() << 12)));
 
-        SnowflakeZkFactory.close();
     }
 
     /**
@@ -174,9 +181,8 @@ public class SnowflakeZkFactoryTest extends BaseClassForTests {
 
         exception.expect(IllegalStateException.class);
         exception.expectMessage("The snowflake node is full! The max node amount is 1024.");
-        SnowflakeZkFactory.build(server.getConnectString(), appUrl);
+        SnowflakeZkFactory.init(server.getConnectString(), appUrl);
 
-        SnowflakeZkFactory.close();
     }
 
     /**
@@ -185,7 +191,7 @@ public class SnowflakeZkFactoryTest extends BaseClassForTests {
     @Test
     public void testClose() {
 
-        SnowflakeZkFactory.build(server.getConnectString(), appUrl);
+        SnowflakeZkFactory.init(server.getConnectString(), appUrl);
 
         assertThat("generatedID is not equal!", SnowflakeZkFactory.getSnowflake().getId(), equalTo((SnowflakeZkFactory.getSnowflake().getLastTimestamp() << 22) + (SnowflakeZkFactory.getSnowflake().getWorkerId() << 12)));
 
@@ -243,7 +249,7 @@ public class SnowflakeZkFactoryTest extends BaseClassForTests {
 
     private static Void deleteNode(String path) {
         try {
-            return client.delete().forPath(path);
+            return client.delete().deletingChildrenIfNeeded().forPath(path);
         } catch (Exception e) {
             throw new IllegalStateException(e.getMessage(), e);
         }

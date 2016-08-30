@@ -79,8 +79,8 @@ public class SnowflakeZkFactory {
      * @param appUrl appName
      * @return Snowflake
      */
-    public static Snowflake build(String zkUrl, String appUrl) {
-        return build(zkUrl, appUrl, null, true, 0L, 1L);
+    public static Snowflake init(String zkUrl, String appUrl) {
+        return init(zkUrl, appUrl, null, true, 0L, 1L);
     }
 
     /**
@@ -91,8 +91,8 @@ public class SnowflakeZkFactory {
      * @param authority authority
      * @return Snowflake
      */
-    public static Snowflake build(String zkUrl, String appUrl, String authority) {
-        return build(zkUrl, appUrl, authority, true, 0L, 1L);
+    public static Snowflake init(String zkUrl, String appUrl, String authority) {
+        return init(zkUrl, appUrl, authority, true, 0L, 1L);
     }
 
     /**
@@ -104,8 +104,8 @@ public class SnowflakeZkFactory {
      * @param timeSync  timeSync
      * @return Snowflake
      */
-    public static Snowflake build(String zkUrl, String appUrl, String authority, boolean timeSync) {
-        return build(zkUrl, appUrl, authority, timeSync, 0L, 1L);
+    public static Snowflake init(String zkUrl, String appUrl, String authority, boolean timeSync) {
+        return init(zkUrl, appUrl, authority, timeSync, 0L, 1L);
     }
 
     /**
@@ -119,7 +119,7 @@ public class SnowflakeZkFactory {
      * @param refreshTimeAfterNTP refreshTimeAfterNTP
      * @return Snowflake
      */
-    public static Snowflake build(String zkUrl, String appUrl, String authority, boolean timeSync, long epoch, long refreshTimeAfterNTP) {
+    public static Snowflake init(String zkUrl, String appUrl, String authority, boolean timeSync, long epoch, long refreshTimeAfterNTP) {
         if (null != SnowflakeZkFactory.snowflake) {
             return SnowflakeZkFactory.snowflake;
         }
@@ -130,7 +130,7 @@ public class SnowflakeZkFactory {
         SnowflakeZkFactory.appUrl = appUrl;
         SnowflakeZkFactory.authority = authority;
         SnowflakeZkFactory.timeSync = timeSync;
-        init();
+        initZkClient();
         doRegister();
         SnowflakeZkFactory.snowflake = new IdWorker(appWorkerID, epoch, refreshTimeAfterNTP);
         return SnowflakeZkFactory.snowflake;
@@ -144,7 +144,9 @@ public class SnowflakeZkFactory {
      */
     public static void close() {
         SnowflakeZkFactory.treeCache.close();
-        client.close();
+        if (null != client) {
+            client.close();
+        }
         client = null;
         SnowflakeZkFactory.snowflake = null;
     }
@@ -152,7 +154,7 @@ public class SnowflakeZkFactory {
     /**
      * 初始化连接,创建Snowflake根节点与App节点
      */
-    private static void init() {
+    private static void initZkClient() {
         //创建client
         CuratorFrameworkFactory.Builder builder = CuratorFrameworkFactory.builder()
                 .connectString(zkUrl)
@@ -265,7 +267,7 @@ public class SnowflakeZkFactory {
                         public void childEvent(CuratorFramework curatorFramework, TreeCacheEvent treeCacheEvent) throws Exception {
                             long pathTime;
                             try {
-                                pathTime = client.checkExists().forPath(path).getCtime();
+                                pathTime = checkExists(path).getCtime();
                             } catch (Exception e) {
                                 pathTime = 0;
                             }
@@ -283,12 +285,12 @@ public class SnowflakeZkFactory {
             throw new IllegalStateException(e.getMessage(), e);
         }
 
-        //获取节点创建时间,并以把此时间设置为当前系统时间
         pathCreatedTime = checkExists(path).getCtime();
+        //获取节点创建时间,并以把此时间设置为当前系统时间
         if (timeSync) {
             updateSystemTime(pathCreatedTime);
+            timeSync = false;
         }
-
     }
 
     /***
@@ -299,18 +301,23 @@ public class SnowflakeZkFactory {
         calendar.setTimeInMillis(date);
         String strDate = calendar.get(Calendar.YEAR) + "-" + (calendar.get(Calendar.MONTH) + 1) + "-" + calendar.get(Calendar.DAY_OF_MONTH);
         String strTime = calendar.get(Calendar.HOUR_OF_DAY) + ":" + calendar.get(Calendar.MINUTE) + ":" + calendar.get(Calendar.SECOND);
-        try {
-            if (osType().equals("windows")) {
-                Runtime.getRuntime().exec("cmd /c date " + strDate);
-                Runtime.getRuntime().exec("cmd /c time  " + strTime);
-            } else if (osType().equals("linux")) {
-                Runtime.getRuntime().exec("sudo date -s " + strDate);
-                Runtime.getRuntime().exec("sudo date -s " + strTime);
-            } else {
+        switch (osType()) {
+            case "linux":
+                try {
+                    Runtime.getRuntime().exec("sudo date -s " + strDate);
+                    Runtime.getRuntime().exec("sudo date -s " + strTime);
+                } catch (IOException e) {
+                    throw new IllegalStateException("Update system time failed!", e);
+                }
+                break;
+            case "windows":
+//                Windows系统需要获取管理员权限才能修改时间,不同语言不同版本的Windows设置时间参数的格式也不同
+//                所以暂时取消Windows的时间设置功能
+//                Runtime.getRuntime().exec("cmd /c date " + strDate);
+//                Runtime.getRuntime().exec("cmd /c time  " + strTime);
+                break;
+            default:
                 throw new IllegalArgumentException("Unsupported OS type!");
-            }
-        } catch (IOException e) {
-            throw new IllegalStateException("Update system time failed!", e);
         }
     }
 
