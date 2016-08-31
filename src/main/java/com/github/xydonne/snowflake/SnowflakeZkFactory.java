@@ -126,6 +126,9 @@ public class SnowflakeZkFactory {
         if (null == zkUrl || null == appUrl) {
             throw new IllegalArgumentException("zkUrl and appUrl cannot be null!");
         }
+        if (zkUrl.startsWith("zookeeper://")){
+            zkUrl = zkUrl.substring("zookeeper://".length());
+        }
         SnowflakeZkFactory.zkUrl = zkUrl;
         SnowflakeZkFactory.appUrl = appUrl;
         SnowflakeZkFactory.authority = authority;
